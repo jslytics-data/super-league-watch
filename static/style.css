@@ -44,6 +44,7 @@ header {
     padding: 12px 15px;
     text-align: center;
     border-bottom: 1px solid #dddfe2;
+    vertical-align: middle;
 }
 
 .match-table th {
@@ -62,22 +63,20 @@ header {
     min-width: 60px;
 }
 
-.status {
-    font-size: 0.9em;
-    font-weight: bold;
-    padding: 4px 8px;
-    border-radius: 4px;
-    color: #fff;
-    text-transform: uppercase;
+.status-text {
+    font-weight: 500;
+    color: #606770;
 }
 
-.status-not_started { background-color: #606770; }
-.status-in_play { background-color: #28a745; }
-.status-completed { background-color: #1877f2; }
-
-.live-minute {
-    font-size: 0.8em;
+.live-indicator {
+    font-weight: bold;
     color: #28a745;
+}
+
+.date-time {
+    font-size: 0.9em;
+    color: #606770;
+    white-space: nowrap;
 }
 
 .spinner {

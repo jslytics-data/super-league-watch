@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const header = table.createTHead();
         const headerRow = header.insertRow();
-        headerRow.innerHTML = '<th>Home</th><th>Score</th><th>Away</th><th>Status</th>';
+        headerRow.innerHTML = '<th>Home</th><th>Score</th><th>Away</th><th>Status</th><th>K/O Date & Time (UTC)</th>';
         
         const tbody = table.createTBody();
         data.matches.forEach(match => {
@@ -39,17 +39,18 @@ document.addEventListener('DOMContentLoaded', function() {
             awayTeamCell.textContent = match.away_team;
             
             const statusCell = row.insertCell();
-            const statusDiv = document.createElement('div');
-            statusDiv.className = `status status-${match.status}`;
-            statusDiv.textContent = match.status.replace('_', ' ');
-            statusCell.appendChild(statusDiv);
-
-            if (match.live_minute) {
-                const minuteDiv = document.createElement('div');
-                minuteDiv.className = 'live-minute';
-                minuteDiv.textContent = `${match.live_minute}'`;
-                statusCell.appendChild(minuteDiv);
+            statusCell.className = 'status-text';
+            if (match.status === 'not_started') {
+                statusCell.textContent = `Starts at ${match.kick_off_time_utc}`;
+            } else if (match.status === 'in_play') {
+                statusCell.innerHTML = `<span class="live-indicator">LIVE</span> ${match.live_minute}'`;
+            } else if (match.status === 'completed') {
+                statusCell.textContent = 'Full Time';
             }
+
+            const dateCell = row.insertCell();
+            dateCell.className = 'date-time';
+            dateCell.textContent = `${match.date} ${match.kick_off_time_utc}`;
         });
         
         matchesContainer.innerHTML = '';
