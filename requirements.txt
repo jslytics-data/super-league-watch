@@ -1,0 +1,7 @@
+Flask
+python-dotenv
+google-cloud-logging
+google-cloud-firestore
+google-cloud-tasks
+requests
+gunicorn
