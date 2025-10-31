@@ -4,8 +4,6 @@ body {
     color: #1c1e21;
     margin: 0;
     padding: 20px;
-    display: flex;
-    justify-content: center;
 }
 
 .container {
@@ -35,48 +33,51 @@ header {
     margin-top: 5px;
 }
 
-.match-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.match-table th, .match-table td {
-    padding: 12px 15px;
-    text-align: center;
+.match-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 10px;
     border-bottom: 1px solid #dddfe2;
-    vertical-align: middle;
 }
 
-.match-table th {
-    background-color: #f5f6f7;
-    font-weight: 600;
+.match-card:last-child {
+    border-bottom: none;
 }
 
-.team-name {
-    text-align: right;
+.team {
+    flex: 1;
+    font-size: 1.1em;
     font-weight: 500;
 }
+
+.team-home { text-align: right; }
+.team-away { text-align: left; }
 
 .score {
     font-weight: bold;
-    font-size: 1.2em;
-    min-width: 60px;
+    font-size: 1.4em;
+    margin: 0 20px;
 }
 
-.status-text {
-    font-weight: 500;
-    color: #606770;
-}
-
-.live-indicator {
-    font-weight: bold;
-    color: #28a745;
-}
-
-.date-time {
+.status-info {
+    width: 150px;
+    text-align: center;
     font-size: 0.9em;
     color: #606770;
-    white-space: nowrap;
+}
+
+.status-info .live-indicator {
+    display: block;
+    font-weight: bold;
+    color: #28a745;
+    font-size: 1.1em;
+}
+
+.status-info .live-minute {
+    display: block;
+    font-weight: bold;
+    font-size: 1em;
 }
 
 .spinner {
@@ -96,4 +97,11 @@ header {
 
 .hidden {
     display: none;
+}
+
+/* Responsive layout for smaller screens */
+@media (max-width: 600px) {
+    .team { font-size: 1em; }
+    .score { margin: 0 10px; font-size: 1.2em; }
+    .status-info { width: 120px; font-size: 0.8em; }
 }

@@ -10,9 +10,9 @@ from . import schedule_next_run
 
 logger = logging.getLogger(__name__)
 
-LEAGUE_NAME = "eredivisie"
+LEAGUE_NAME = "bundesliga"
 SEASON_ID = "season_2024_2025"
-LEAGUE_COMPETITION_ID = 196 
+LEAGUE_COMPETITION_ID = 1 
 
 def run_orchestration_logic():
     logger.info("--- Starting Orchestration Logic ---")
