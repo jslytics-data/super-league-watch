@@ -80,7 +80,9 @@ def fetch_and_consolidate_round_data(competition_id, round_id, lang=None):
             logger.info(f"Added new match {key} found only in the results feed.")
 
     clean_matches = [_transform_match_data(m) for m in merged_matches.values()]
-    clean_matches.sort(key=lambda x: (x.get('date', ''), x.get('kick_off_time_utc', '')))
+    
+    # Corrected sort key to handle potential None values
+    clean_matches.sort(key=lambda x: (x.get('date') or '', x.get('kick_off_time_utc') or ''))
     
     final_data_structure = {
         "round_id": round_id,
@@ -97,7 +99,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     COMPETITION_ID_TO_TEST = 9
-    ROUND_ID_TO_TEST = "9" 
+    ROUND_ID_TO_TEST = "10" 
 
     consolidated_data = fetch_and_consolidate_round_data(
         competition_id=COMPETITION_ID_TO_TEST,
