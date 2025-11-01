@@ -19,9 +19,10 @@ def _transform_match_data(merged_match):
     elif raw_status == "FINISHED":
         clean_status = "completed"
 
-    kick_off_time = merged_match.get('time')
-    if clean_status != "in_play" and kick_off_time:
-        kick_off_time = kick_off_time.split(':00')[0]
+    # Use 'scheduled' as the primary source for kick-off time, falling back to 'time'
+    kick_off_time = merged_match.get('scheduled') or merged_match.get('time')
+    if kick_off_time and ':' in kick_off_time:
+         kick_off_time = kick_off_time.split(':00')[0]
 
     home_team_name = (merged_match.get('home') or {}).get('name', 'N/A')
     away_team_name = (merged_match.get('away') or {}).get('name', 'N/A')
@@ -38,7 +39,7 @@ def _transform_match_data(merged_match):
         "away_team_subreddit": MAPPINGS["team_to_subreddit"].get(away_team_name),
         "status": clean_status,
         "score": (merged_match.get('scores') or {}).get('score', '').strip(),
-        "live_minute": merged_match.get('time', '') if clean_status == "in_play" else None,
+        "live_minute": merged_match.get('time', None) if clean_status == "in_play" else None,
         "competition_name": (merged_match.get('competition') or {}).get('name', 'N/A')
     }
 
@@ -60,39 +61,42 @@ def fetch_and_consolidate_round_data(competition_id, round_id, lang=None):
     merged_matches = {}
 
     for fixture in fixtures:
-        fixture_id = fixture.get("id")
+        fixture_id = str(fixture.get("id"))
         if fixture_id:
-            merged_matches[str(fixture_id)] = fixture
+            # Preserve original kick-off time under 'scheduled' key
+            fixture['scheduled'] = fixture.get('time')
+            merged_matches[fixture_id] = fixture
     logger.info(f"Processed {len(fixtures)} matches from the fixtures list as baseline.")
 
     for live_match in live_scores:
-        fixture_id = live_match.get("fixture_id")
+        fixture_id = str(live_match.get("fixture_id"))
         if not fixture_id:
             continue
         
-        key = str(fixture_id)
-        live_match_data = live_match.copy()
-
-        if key in merged_matches:
-            merged_matches[key].update(live_match_data)
-            logger.info(f"Updated match {key} with live data.")
+        live_data = live_match.copy()
+        
+        if fixture_id in merged_matches:
+            # Smart merge: preserve original date and scheduled time
+            merged_matches[fixture_id].update(live_data)
+            logger.info(f"Updated match {fixture_id} with live data.")
         else:
-            merged_matches[key] = live_match
-            logger.info(f"Added new match {key} found only in the live feed.")
+            # If live match not in fixtures, add it and infer the date is today
+            live_data['date'] = today.strftime("%Y-%m-%d")
+            merged_matches[fixture_id] = live_data
+            logger.info(f"Added new match {fixture_id} from live feed and inferred date.")
 
     for result_match in results:
-        fixture_id = result_match.get("fixture_id")
+        fixture_id = str(result_match.get("fixture_id"))
         result_round = result_match.get("round")
         if not fixture_id or str(result_round) != str(round_id):
             continue
 
-        key = str(fixture_id)
-        if key in merged_matches:
-            merged_matches[key].update(result_match)
-            logger.info(f"Updated match {key} with result data.")
+        if fixture_id in merged_matches:
+            merged_matches[fixture_id].update(result_match)
+            logger.info(f"Updated match {fixture_id} with result data.")
         else:
-            merged_matches[key] = result_match
-            logger.info(f"Added new match {key} found only in the results feed.")
+            merged_matches[fixture_id] = result_match
+            logger.info(f"Added new match {fixture_id} found only in the results feed.")
 
     clean_matches = [_transform_match_data(m) for m in merged_matches.values()]
     clean_matches.sort(key=lambda x: (x.get('date') or '', x.get('kick_off_time_utc') or ''))
@@ -115,7 +119,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     COMPETITION_ID_TO_TEST = 9
-    ROUND_ID_TO_TEST = "10" 
+    ROUND_ID_TO_TEST = "9" 
 
     consolidated_data = fetch_and_consolidate_round_data(
         competition_id=COMPETITION_ID_TO_TEST,
@@ -131,7 +135,7 @@ if __name__ == "__main__":
         
         try:
             with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(consolidated_data, f, indent=4)
+                json.dump(consolidated_data, f, indent=4, ensure_ascii=False)
             logger.info(f"Successfully saved consolidated data for round {ROUND_ID_TO_TEST} to {filename}")
         except IOError as e:
             logger.error(f"Failed to write to file {filename}: {e}")
