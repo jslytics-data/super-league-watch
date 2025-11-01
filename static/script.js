@@ -74,6 +74,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const scoreCell = row.insertCell();
             scoreCell.className = 'score';
             
+            // ** START OF FIX **
+            // Only show score for live or completed games.
             if (match.status === 'in_play' || match.status === 'completed') {
                 const link = document.createElement('a');
                 const query = encodeURIComponent(`${match.home_team} ${match.away_team}`);
@@ -82,8 +84,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 link.textContent = match.score || '-';
                 scoreCell.appendChild(link);
             } else {
-                scoreCell.textContent = match.score || '-';
+                // For 'not_started' games, always show a dash.
+                scoreCell.textContent = '-';
             }
+            // ** END OF FIX **
             
             renderTeamCell(row.insertCell(), match, 'away');
             
