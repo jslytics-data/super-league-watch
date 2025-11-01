@@ -12,13 +12,11 @@ body {
     background-color: #ffffff;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    padding: 20px;
 }
 
 header {
+    padding: 20px;
     border-bottom: 1px solid #dddfe2;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
     text-align: center;
 }
 
@@ -33,51 +31,47 @@ header {
     margin-top: 5px;
 }
 
-.match-card {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 15px 10px;
-    border-bottom: 1px solid #dddfe2;
+.table-container {
+    overflow-x: auto; /* Enables horizontal scrolling on small screens */
 }
 
-.match-card:last-child {
+.match-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.match-table th, .match-table td {
+    padding: 12px 15px;
+    text-align: center;
+    border-bottom: 1px solid #dddfe2;
+    white-space: nowrap; /* Prevents text wrapping */
+}
+
+.match-table tr:last-child td {
     border-bottom: none;
 }
 
-.team {
-    flex: 1;
-    font-size: 1.1em;
-    font-weight: 500;
+.match-table th {
+    background-color: #f5f6f7;
+    font-weight: 600;
 }
 
-.team-home { text-align: right; }
-.team-away { text-align: left; }
+.team-home { text-align: right; font-weight: 500; }
+.team-away { text-align: left; font-weight: 500; }
 
 .score {
     font-weight: bold;
-    font-size: 1.4em;
-    margin: 0 20px;
+    font-size: 1.2em;
 }
 
 .status-info {
-    width: 150px;
-    text-align: center;
     font-size: 0.9em;
     color: #606770;
 }
 
-.status-info .live-indicator {
-    display: block;
+.live-indicator {
     font-weight: bold;
     color: #28a745;
-    font-size: 1.1em;
-}
-
-.status-info .live-minute {
-    display: block;
-    font-weight: bold;
-    font-size: 1em;
 }
 
 .spinner {
@@ -95,13 +89,4 @@ header {
     100% { transform: rotate(360deg); }
 }
 
-.hidden {
-    display: none;
-}
-
-/* Responsive layout for smaller screens */
-@media (max-width: 600px) {
-    .team { font-size: 1em; }
-    .score { margin: 0 10px; font-size: 1.2em; }
-    .status-info { width: 120px; font-size: 0.8em; }
-}
+.hidden { display: none; }

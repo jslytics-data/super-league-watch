@@ -18,15 +18,20 @@ def _transform_match_data(merged_match):
     elif raw_status == "FINISHED":
         clean_status = "completed"
 
+    kick_off_time = merged_match.get('time')
+    if clean_status != "in_play" and kick_off_time:
+        kick_off_time = kick_off_time.split(':00')[0]
+
     return {
         "fixture_id": merged_match.get('id') or merged_match.get('fixture_id'),
         "date": merged_match.get('date'),
-        "kick_off_time_utc": merged_match.get('time') if raw_status != 'SCHEDULED' else merged_match.get('time', '').split(':00')[0],
+        "kick_off_time_utc": kick_off_time,
         "home_team": (merged_match.get('home') or {}).get('name', 'N/A'),
         "away_team": (merged_match.get('away') or {}).get('name', 'N/A'),
         "status": clean_status,
         "score": (merged_match.get('scores') or {}).get('score', '').strip(),
-        "live_minute": merged_match.get('time', '') if clean_status == "in_play" else None
+        "live_minute": merged_match.get('time', '') if clean_status == "in_play" else None,
+        "competition_name": (merged_match.get('competition') or {}).get('name', 'N/A')
     }
 
 def fetch_and_consolidate_round_data(competition_id, round_id, lang=None):
@@ -58,8 +63,10 @@ def fetch_and_consolidate_round_data(competition_id, round_id, lang=None):
             continue
         
         key = str(fixture_id)
+        live_match_data = live_match.copy()
+
         if key in merged_matches:
-            merged_matches[key].update(live_match)
+            merged_matches[key].update(live_match_data)
             logger.info(f"Updated match {key} with live data.")
         else:
             merged_matches[key] = live_match
@@ -80,12 +87,13 @@ def fetch_and_consolidate_round_data(competition_id, round_id, lang=None):
             logger.info(f"Added new match {key} found only in the results feed.")
 
     clean_matches = [_transform_match_data(m) for m in merged_matches.values()]
-    
-    # Corrected sort key to handle potential None values
     clean_matches.sort(key=lambda x: (x.get('date') or '', x.get('kick_off_time_utc') or ''))
     
+    competition_name = next((match.get('competition_name') for match in clean_matches if match.get('competition_name')), 'Super League Watch')
+
     final_data_structure = {
         "round_id": round_id,
+        "competition_name": competition_name,
         "matches": clean_matches,
         "last_updated_utc": datetime.now(timezone.utc).isoformat()
     }

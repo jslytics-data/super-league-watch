@@ -14,42 +14,47 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         mainTitleElement.textContent = `${data.competition_name} - Round ${data.round_id}`;
-        matchesContainer.innerHTML = ''; // Clear previous content
+        
+        const tableContainer = document.createElement('div');
+        tableContainer.className = 'table-container';
 
+        const table = document.createElement('table');
+        table.className = 'match-table';
+        
+        const header = table.createTHead();
+        const headerRow = header.insertRow();
+        headerRow.innerHTML = '<th>Home</th><th>Score</th><th>Away</th><th>Status</th>';
+        
+        const tbody = table.createTBody();
         data.matches.forEach(match => {
-            const card = document.createElement('div');
-            card.className = 'match-card';
-
-            const homeTeam = document.createElement('div');
-            homeTeam.className = 'team team-home';
-            homeTeam.textContent = match.home_team;
-
-            const score = document.createElement('div');
-            score.className = 'score';
-            score.textContent = match.score || '-';
-
-            const awayTeam = document.createElement('div');
-            awayTeam.className = 'team team-away';
-            awayTeam.textContent = match.away_team;
+            const row = tbody.insertRow();
             
-            const statusInfo = document.createElement('div');
-            statusInfo.className = 'status-info';
-
+            const homeCell = row.insertCell();
+            homeCell.className = 'team-home';
+            homeCell.textContent = match.home_team;
+            
+            const scoreCell = row.insertCell();
+            scoreCell.className = 'score';
+            scoreCell.textContent = match.score || '-';
+            
+            const awayCell = row.insertCell();
+            awayCell.className = 'team-away';
+            awayCell.textContent = match.away_team;
+            
+            const statusCell = row.insertCell();
+            statusCell.className = 'status-info';
             if (match.status === 'not_started') {
-                statusInfo.innerHTML = `<div>${match.date}</div><div>${match.kick_off_time_utc} (UTC)</div>`;
+                statusCell.innerHTML = `<div>${match.date}</div><div>${match.kick_off_time_utc} (UTC)</div>`;
             } else if (match.status === 'in_play') {
-                statusInfo.innerHTML = `<span class="live-indicator">LIVE</span><span class="live-minute">${match.live_minute}'</span>`;
+                statusCell.innerHTML = `<div><span class="live-indicator">LIVE</span></div><div>${match.live_minute}'</div>`;
             } else if (match.status === 'completed') {
-                statusInfo.textContent = 'Full Time';
+                statusCell.textContent = 'Full Time';
             }
-
-            card.appendChild(homeTeam);
-            card.appendChild(score);
-            card.appendChild(awayTeam);
-            card.appendChild(statusInfo);
-            
-            matchesContainer.appendChild(card);
         });
+        
+        tableContainer.appendChild(table);
+        matchesContainer.innerHTML = '';
+        matchesContainer.appendChild(tableContainer);
     }
 
     function showLoading() {
