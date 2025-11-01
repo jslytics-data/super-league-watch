@@ -73,7 +73,17 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const scoreCell = row.insertCell();
             scoreCell.className = 'score';
-            scoreCell.textContent = match.score || '-';
+            
+            if (match.status === 'in_play' || match.status === 'completed') {
+                const link = document.createElement('a');
+                const query = encodeURIComponent(`${match.home_team} ${match.away_team}`);
+                link.href = `https://www.google.com/search?q=${query}`;
+                link.target = '_blank';
+                link.textContent = match.score || '-';
+                scoreCell.appendChild(link);
+            } else {
+                scoreCell.textContent = match.score || '-';
+            }
             
             renderTeamCell(row.insertCell(), match, 'away');
             
