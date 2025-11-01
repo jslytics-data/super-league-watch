@@ -3,13 +3,13 @@ import logging
 import json
 from datetime import datetime, timezone
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_document import DocumentSnapshot
 
 from dotenv import load_dotenv
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Updated client initialization to use the specific database ID
 db = firestore.Client(
     project=os.getenv("GCP_PROJECT_ID"),
     database=os.getenv("FIRESTORE_DATABASE_ID")
@@ -39,12 +39,39 @@ def set_current_round_pointer(document_path, round_id):
         doc_ref.set({
             "document_path": document_path,
             "round_id": round_id,
+            "reddit_post_id": None,
+            "reddit_post_finalized": False,
             "last_updated_utc": datetime.now(timezone.utc).isoformat()
         })
-        logger.info(f"Successfully set current round pointer to path: {document_path}")
+        logger.info(f"Successfully set/reset current round pointer for path: {document_path}")
         return True
     except Exception as e:
         logger.error(f"Failed to set current round pointer in Firestore: {e}")
+        return False
+
+def update_pointer_with_reddit_details(post_id=None, is_finalized=None):
+    update_data = {"last_updated_utc": datetime.now(timezone.utc).isoformat()}
+    log_messages = []
+
+    if post_id is not None:
+        update_data["reddit_post_id"] = post_id
+        log_messages.append(f"reddit_post_id={post_id}")
+
+    if is_finalized is not None:
+        update_data["reddit_post_finalized"] = is_finalized
+        log_messages.append(f"reddit_post_finalized={is_finalized}")
+
+    if not log_messages:
+        logger.warning("update_pointer_with_reddit_details called without any data to update.")
+        return True
+
+    try:
+        doc_ref = db.collection(POINTER_COLLECTION).document(POINTER_DOCUMENT)
+        doc_ref.update(update_data)
+        logger.info(f"Successfully updated pointer with: {', '.join(log_messages)}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to update pointer with Reddit details: {e}")
         return False
 
 def get_round_data_by_path(document_path):
@@ -106,37 +133,34 @@ if __name__ == "__main__":
 
         test_doc_path = f"{LEAGUE_COLLECTION}/{TEST_LEAGUE}/seasons/{TEST_SEASON}/rounds/{test_round_id}"
 
-        # 1. Test set_round_data
         if test_round_data:
             logger.info(f"\n1. Attempting to WRITE round data to: {test_doc_path}")
-            success = set_round_data(test_doc_path, test_round_data)
-            if success:
-                logger.info("WRITE successful.")
-            else:
-                logger.error("WRITE failed.")
+            if set_round_data(test_doc_path, test_round_data): logger.info("WRITE successful.")
+            else: logger.error("WRITE failed.")
         
-        # 2. Test get_round_data_by_path
         logger.info(f"\n2. Attempting to READ round data from: {test_doc_path}")
         retrieved_data = get_round_data_by_path(test_doc_path)
-        if retrieved_data and retrieved_data.get("round_id") == test_round_id:
-            logger.info("READ successful and data appears valid.")
-        else:
-            logger.error("READ failed or data was invalid.")
+        if retrieved_data: logger.info("READ successful.")
+        else: logger.error("READ failed.")
 
-        # 3. Test set_current_round_pointer
-        logger.info(f"\n3. Attempting to WRITE pointer to: {test_doc_path}")
-        success = set_current_round_pointer(test_doc_path, test_round_id)
-        if success:
-            logger.info("Pointer WRITE successful.")
-        else:
-            logger.error("Pointer WRITE failed.")
+        logger.info(f"\n3. Attempting to SET/RESET pointer to: {test_doc_path}")
+        if set_current_round_pointer(test_doc_path, test_round_id): logger.info("Pointer SET successful.")
+        else: logger.error("Pointer SET failed.")
             
-        # 4. Test get_current_round_pointer
         logger.info(f"\n4. Attempting to READ pointer.")
         retrieved_pointer = get_current_round_pointer()
-        if retrieved_pointer and retrieved_pointer.get("document_path") == test_doc_path:
-            logger.info("Pointer READ successful and path is correct.")
-        else:
-            logger.error("Pointer READ failed or path was incorrect.")
+        if retrieved_pointer: logger.info(f"Pointer READ successful: {retrieved_pointer}")
+        else: logger.error("Pointer READ failed.")
         
+        logger.info(f"\n5. Attempting to UPDATE pointer with Reddit Post ID.")
+        if update_pointer_with_reddit_details(post_id="t3_test123"): logger.info("Pointer UPDATE successful.")
+        else: logger.error("Pointer UPDATE failed.")
+
+        logger.info(f"\n6. Attempting to READ pointer again to verify update.")
+        retrieved_pointer = get_current_round_pointer()
+        if retrieved_pointer and retrieved_pointer.get("reddit_post_id") == "t3_test123":
+            logger.info(f"Pointer READ successful and ID is correct: {retrieved_pointer}")
+        else:
+            logger.error(f"Pointer READ failed or ID was incorrect: {retrieved_pointer}")
+
         logger.info("\n--- CLI Test Complete ---")

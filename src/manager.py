@@ -7,84 +7,105 @@ from . import fetch_and_consolidate_round_data
 from . import analyze_round_state
 from . import manage_firestore_state
 from . import schedule_next_run
+from . import distribute_to_reddit
 
 logger = logging.getLogger(__name__)
 
 LEAGUE_NAME = "superleague_greece"
 SEASON_ID = "season_2024_2025"
 LEAGUE_COMPETITION_ID = 9
+HOURS_BEFORE_KICKOFF_TO_POST = 1
 
 def run_orchestration_logic():
     logger.info("--- Starting Orchestration Logic ---")
     
-    # Step 1: Determine the current round ID
     pointer_data = manage_firestore_state.get_current_round_pointer()
-    if not pointer_data:
-        logger.warning("No round pointer found. Attempting to discover a new round.")
+    
+    if not pointer_data or pointer_data.get("document_path") == "completed":
+        logger.warning("No active round pointer found. Attempting to discover a new round.")
         current_round_id = discover_current_round_id.discover_current_round_id(LEAGUE_COMPETITION_ID)
 
         if not current_round_id:
-            logger.warning("Discovery failed to find a new round. Likely end of season.")
-            # Schedule a check for tomorrow
-            target_url = os.getenv("CLOUD_RUN_SERVICE_URL")
+            logger.warning("Discovery failed. Likely end of season. Scheduling check for tomorrow.")
             next_run = datetime.now(timezone.utc) + timedelta(days=1)
+            target_url = os.getenv("CLOUD_RUN_SERVICE_URL")
             schedule_next_run.schedule_next_run(next_run, target_url)
             return True
 
         doc_path = f"leagues/{LEAGUE_NAME}/seasons/{SEASON_ID}/rounds/{current_round_id}"
         if not manage_firestore_state.set_current_round_pointer(doc_path, current_round_id):
-            logger.error("Failed to set the new round pointer in Firestore.")
-            return False
-    else:
-        current_round_id = pointer_data.get("round_id")
-        if not current_round_id:
-            logger.error("Pointer document is corrupt or missing 'round_id'.")
-            return False
+            return False # Halt
+        
+        pointer_data = manage_firestore_state.get_current_round_pointer()
+        if not pointer_data:
+            logger.error("Failed to retrieve newly created pointer.")
+            return False # Halt
 
-    logger.info(f"Successfully identified current round: {current_round_id}")
+    current_round_id = pointer_data.get("round_id")
+    round_doc_path = pointer_data.get("document_path")
+    reddit_post_id = pointer_data.get("reddit_post_id")
+    reddit_post_finalized = pointer_data.get("reddit_post_finalized", False)
+    
+    if not current_round_id or not round_doc_path:
+        logger.error("Pointer document is corrupt. Halting.")
+        return False # Halt
 
-    # Step 2: Fetch and consolidate the latest data for this round
-    consolidated_data = fetch_and_consolidate_round_data.fetch_and_consolidate_round_data(
+    logger.info(f"Processing Round: {current_round_id}. Reddit Post ID: {reddit_post_id}")
+
+    new_round_data = fetch_and_consolidate_round_data.fetch_and_consolidate_round_data(
         competition_id=LEAGUE_COMPETITION_ID,
         round_id=current_round_id
     )
-    if not consolidated_data:
-        logger.error("Failed to fetch and consolidate round data. Halting.")
-        return False
+    if not new_round_data:
+        return False # Halt
 
-    # Step 3: Analyze the consolidated data
-    analysis = analyze_round_state.analyze_round_state(consolidated_data)
+    analysis = analyze_round_state.analyze_round_state(new_round_data)
     if not analysis:
-        logger.error("Failed to analyze round state. Halting.")
-        return False
+        return False # Halt
         
     round_state = analysis.get("round_state")
     next_run_timestamp_iso = analysis.get("next_run_timestamp")
 
-    # Step 4: Persist the new state to Firestore
-    round_doc_path = f"leagues/{LEAGUE_NAME}/seasons/{SEASON_ID}/rounds/{current_round_id}"
-    if not manage_firestore_state.set_round_data(round_doc_path, consolidated_data):
-        logger.error("Failed to write updated round data to Firestore. Halting.")
-        return False
+    if not manage_firestore_state.set_round_data(round_doc_path, new_round_data):
+        return False # Halt
 
-    # Step 5: If the round is now complete, clear the pointer for next run's discovery
+    # --- Reddit Logic Decision Tree ---
+    if not reddit_post_id and round_state == "not_started":
+        if next_run_timestamp_iso:
+            first_kickoff = datetime.fromisoformat(next_run_timestamp_iso)
+            time_until_kickoff = first_kickoff - datetime.now(timezone.utc)
+            if time_until_kickoff <= timedelta(hours=HOURS_BEFORE_KICKOFF_TO_POST):
+                logger.info("First match is soon. Creating initial Reddit post.")
+                new_post_id = distribute_to_reddit.create_or_get_post(new_round_data)
+                if new_post_id:
+                    if not manage_firestore_state.update_pointer_with_reddit_details(post_id=new_post_id):
+                        return False # Halt
+                    reddit_post_id = new_post_id
+    
+    elif reddit_post_id and round_state == "in_play":
+        logger.info("Round is in play. Updating Reddit post with live scores.")
+        distribute_to_reddit.update_post(reddit_post_id, new_round_data)
+
+    elif reddit_post_id and round_state == "completed" and not reddit_post_finalized:
+        logger.info("Round is complete. Performing final update on Reddit post.")
+        distribute_to_reddit.update_post(reddit_post_id, new_round_data)
+        if not manage_firestore_state.update_pointer_with_reddit_details(is_finalized=True):
+            return False # Halt
+
     if round_state == "completed":
-        logger.info(f"Round {current_round_id} is complete. Clearing pointer to trigger discovery on next run.")
+        logger.info(f"Round {current_round_id} is complete. Marking pointer to trigger discovery on next run.")
         if not manage_firestore_state.set_current_round_pointer("completed", current_round_id):
-             logger.error("Failed to update round pointer to 'completed' state.")
-             return False
+             return False # Halt
 
-    # Step 6: Schedule the next run
     target_url = os.getenv("CLOUD_RUN_SERVICE_URL")
     if not target_url:
-        logger.error("CLOUD_RUN_SERVICE_URL environment variable is not set. Cannot schedule next run.")
-        return False
+        logger.error("CLOUD_RUN_SERVICE_URL not set. Cannot schedule next run.")
+        return False # Halt
 
     next_run_dt = datetime.fromisoformat(next_run_timestamp_iso) if next_run_timestamp_iso else None
     
     if not schedule_next_run.schedule_next_run(next_run_dt, target_url):
-        logger.error("Failed to schedule the next run via Cloud Tasks. Halting.")
-        return False
+        return False # Halt
 
     logger.info("--- Orchestration Logic Completed Successfully ---")
     return True
