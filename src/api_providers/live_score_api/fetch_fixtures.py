@@ -78,8 +78,8 @@ if __name__ == "__main__":
     load_dotenv()
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    COMPETITION_ID_TO_TEST = 210
-    DAYS_AHEAD_TO_TEST = 7
+    COMPETITION_ID_TO_TEST = 9
+    DAYS_AHEAD_TO_TEST = 30
     
     logger.info(f"CLI Test: Fetching all fixtures for competition {COMPETITION_ID_TO_TEST} for the next {DAYS_AHEAD_TO_TEST} days.")
 

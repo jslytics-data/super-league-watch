@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from .api_providers.live_score_api.fetch_fixtures import fetch_fixtures_from_api
 from .api_providers.live_score_api.fetch_live_scores import fetch_live_scores_from_api
 from .api_providers.live_score_api.fetch_results import fetch_results_from_api
+from .team_mappings import MAPPINGS
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +23,19 @@ def _transform_match_data(merged_match):
     if clean_status != "in_play" and kick_off_time:
         kick_off_time = kick_off_time.split(':00')[0]
 
+    home_team_name = (merged_match.get('home') or {}).get('name', 'N/A')
+    away_team_name = (merged_match.get('away') or {}).get('name', 'N/A')
+
     return {
         "fixture_id": merged_match.get('id') or merged_match.get('fixture_id'),
         "date": merged_match.get('date'),
         "kick_off_time_utc": kick_off_time,
-        "home_team": (merged_match.get('home') or {}).get('name', 'N/A'),
-        "away_team": (merged_match.get('away') or {}).get('name', 'N/A'),
+        "home_team": home_team_name,
+        "away_team": away_team_name,
+        "home_team_greek": MAPPINGS["team_to_greek"].get(home_team_name),
+        "away_team_greek": MAPPINGS["team_to_greek"].get(away_team_name),
+        "home_team_subreddit": MAPPINGS["team_to_subreddit"].get(home_team_name),
+        "away_team_subreddit": MAPPINGS["team_to_subreddit"].get(away_team_name),
         "status": clean_status,
         "score": (merged_match.get('scores') or {}).get('score', '').strip(),
         "live_minute": merged_match.get('time', '') if clean_status == "in_play" else None,

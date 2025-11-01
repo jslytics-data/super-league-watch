@@ -7,6 +7,46 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const REFRESH_INTERVAL_SECONDS = 30;
 
+    function formatTime(utcDate, utcTime) {
+        if (!utcDate || !utcTime) return '';
+        
+        if (String(utcTime).length <= 2) {
+            utcTime += ':00';
+        }
+
+        const dateString = `${utcDate}T${utcTime}:00Z`;
+        const date = new Date(dateString);
+
+        if (isNaN(date)) return '';
+        
+        const options = {
+            timeZone: 'Europe/Athens',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        };
+        
+        return new Intl.DateTimeFormat('el-GR', options).format(date);
+    }
+
+    function renderTeamCell(cell, match, teamType) {
+        const teamName = match[`${teamType}_team`];
+        const teamNameGreek = match[`${teamType}_team_greek`] || teamName;
+        const subredditUrl = match[`${teamType}_team_subreddit`];
+        
+        cell.className = `team-${teamType}`;
+
+        if (subredditUrl) {
+            const link = document.createElement('a');
+            link.href = subredditUrl;
+            link.target = '_blank';
+            link.textContent = teamNameGreek;
+            cell.appendChild(link);
+        } else {
+            cell.textContent = teamNameGreek;
+        }
+    }
+
     function renderMatches(data) {
         if (!data || !data.matches) {
             showError('Invalid data received from the server.');
@@ -29,22 +69,20 @@ document.addEventListener('DOMContentLoaded', function() {
         data.matches.forEach(match => {
             const row = tbody.insertRow();
             
-            const homeCell = row.insertCell();
-            homeCell.className = 'team-home';
-            homeCell.textContent = match.home_team;
+            renderTeamCell(row.insertCell(), match, 'home');
             
             const scoreCell = row.insertCell();
             scoreCell.className = 'score';
             scoreCell.textContent = match.score || '-';
             
-            const awayCell = row.insertCell();
-            awayCell.className = 'team-away';
-            awayCell.textContent = match.away_team;
+            renderTeamCell(row.insertCell(), match, 'away');
             
             const statusCell = row.insertCell();
             statusCell.className = 'status-info';
+
             if (match.status === 'not_started') {
-                statusCell.innerHTML = `<div>${match.date}</div><div>${match.kick_off_time_utc} (UTC)</div>`;
+                const localTime = formatTime(match.date, match.kick_off_time_utc);
+                statusCell.innerHTML = `<div>${match.date}</div><div>${localTime}</div>`;
             } else if (match.status === 'in_play') {
                 statusCell.innerHTML = `<div><span class="live-indicator">LIVE</span></div><div>${match.live_minute}'</div>`;
             } else if (match.status === 'completed') {
