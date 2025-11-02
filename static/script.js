@@ -1,148 +1,119 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const API_ENDPOINT = '/api/get_current_round';
+    const REFRESH_INTERVAL_MS = 30000;
+
+    const mainTitle = document.getElementById('main-title');
+    const lastUpdated = document.getElementById('last-updated');
     const matchesContainer = document.getElementById('matches-container');
     const loadingSpinner = document.getElementById('loading-spinner');
     const errorMessage = document.getElementById('error-message');
-    const lastUpdatedElement = document.getElementById('last-updated');
-    const mainTitleElement = document.getElementById('main-title');
 
-    const REFRESH_INTERVAL_SECONDS = 30;
-
-    function formatTime(utcDate, utcTime) {
-        if (!utcDate || !utcTime) return '';
-        
-        if (String(utcTime).length <= 2) {
-            utcTime += ':00';
-        }
-
-        const dateString = `${utcDate}T${utcTime}:00Z`;
-        const date = new Date(dateString);
-
-        if (isNaN(date)) return '';
-        
-        const options = {
-            timeZone: 'Europe/Athens',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        };
-        
-        return new Intl.DateTimeFormat('el-GR', options).format(date);
-    }
-
-    function renderTeamCell(cell, match, teamType) {
-        const teamName = match[`${teamType}_team`];
-        const teamNameGreek = match[`${teamType}_team_greek`] || teamName;
-        const subredditUrl = match[`${teamType}_team_subreddit`];
-        
-        cell.className = `team-${teamType}`;
-
-        if (subredditUrl) {
-            const link = document.createElement('a');
-            link.href = subredditUrl;
-            link.target = '_blank';
-            link.textContent = teamNameGreek;
-            cell.appendChild(link);
-        } else {
-            cell.textContent = teamNameGreek;
-        }
-    }
-
-    function renderMatches(data) {
-        if (!data || !data.matches) {
-            showError('Invalid data received from the server.');
-            return;
-        }
-        
-        mainTitleElement.textContent = `${data.competition_name} - Round ${data.round_id}`;
-        
-        const tableContainer = document.createElement('div');
-        tableContainer.className = 'table-container';
-
-        const table = document.createElement('table');
-        table.className = 'match-table';
-        
-        const header = table.createTHead();
-        const headerRow = header.insertRow();
-        headerRow.innerHTML = '<th>Home</th><th>Score</th><th>Away</th><th>Status</th>';
-        
-        const tbody = table.createTBody();
-        data.matches.forEach(match => {
-            const row = tbody.insertRow();
-            
-            renderTeamCell(row.insertCell(), match, 'home');
-            
-            const scoreCell = row.insertCell();
-            scoreCell.className = 'score';
-            
-            // ** START OF FIX **
-            // Only show score for live or completed games.
-            if (match.status === 'in_play' || match.status === 'completed') {
-                const link = document.createElement('a');
-                const query = encodeURIComponent(`${match.home_team} ${match.away_team}`);
-                link.href = `https://www.google.com/search?q=${query}`;
-                link.target = '_blank';
-                link.textContent = match.score || '-';
-                scoreCell.appendChild(link);
-            } else {
-                // For 'not_started' games, always show a dash.
-                scoreCell.textContent = '-';
-            }
-            // ** END OF FIX **
-            
-            renderTeamCell(row.insertCell(), match, 'away');
-            
-            const statusCell = row.insertCell();
-            statusCell.className = 'status-info';
-
-            if (match.status === 'not_started') {
-                const localTime = formatTime(match.date, match.kick_off_time_utc);
-                statusCell.innerHTML = `<div>${match.date}</div><div>${localTime}</div>`;
-            } else if (match.status === 'in_play') {
-                statusCell.innerHTML = `<div><span class="live-indicator">LIVE</span></div><div>${match.live_minute}'</div>`;
-            } else if (match.status === 'completed') {
-                statusCell.textContent = 'Full Time';
-            }
-        });
-        
-        tableContainer.appendChild(table);
-        matchesContainer.innerHTML = '';
-        matchesContainer.appendChild(tableContainer);
-    }
-
-    function showLoading() {
-        loadingSpinner.classList.remove('hidden');
-        errorMessage.classList.add('hidden');
-        matchesContainer.innerHTML = '';
-    }
-
-    function hideLoading() {
-        loadingSpinner.classList.add('hidden');
-    }
-
-    function showError(message) {
-        errorMessage.textContent = `Error: ${message}. Retrying in ${REFRESH_INTERVAL_SECONDS} seconds.`;
-        errorMessage.classList.remove('hidden');
+    let grTimezone;
+    try {
+        grTimezone = new Intl.DateTimeFormat().resolvedOptions().timeZone.includes("Europe") 
+            ? 'Europe/Athens' 
+            : undefined;
+    } catch (e) {
+        console.warn("Could not determine local timezone accurately.");
     }
     
+    function formatGreekTime(dateStr, timeStr) {
+        if (!grTimezone) return timeStr;
+        if (!dateStr || !timeStr) return '';
+        if (timeStr.length <= 2) timeStr += ':00';
+        
+        const utcDateTime = new Date(`${dateStr}T${timeStr}:00Z`);
+        return new Intl.DateTimeFormat('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: grTimezone,
+            hour12: false
+        }).format(utcDateTime);
+    }
+
+    function renderTable(data) {
+        const competitionName = data.competition_name || 'Super League';
+        const roundId = data.round_id || 'N/A';
+        mainTitle.textContent = `${competitionName} - Round ${roundId}`;
+
+        let lastUpdatedText = 'Last Updated: Just now';
+        if (data.last_updated_utc) {
+            const updatedDate = new Date(data.last_updated_utc);
+            const options = {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            };
+            if (grTimezone) {
+                options.timeZone = grTimezone;
+            }
+            lastUpdatedText = `Last Updated: ${updatedDate.toLocaleTimeString('en-GB', options)}`;
+        }
+        lastUpdated.textContent = lastUpdatedText;
+        
+        if (!data.matches || data.matches.length === 0) {
+            matchesContainer.innerHTML = '<p>No match data available for this round.</p>';
+            return;
+        }
+
+        let tableHTML = '<div class="table-container"><table class="match-table">';
+        data.matches.forEach(match => {
+            const homeTeamName = match.home_team_greek || match.home_team || 'N/A';
+            const awayTeamName = match.away_team_greek || match.away_team || 'N/A';
+            const score = (match.score && match.score.trim()) ? match.score.trim() : '-';
+
+            let statusHTML;
+            switch(match.status) {
+                case 'in_play':
+                    statusHTML = `<div class="live-indicator">LIVE</div><div class="status-info">${match.live_minute}'</div>`;
+                    break;
+                case 'completed':
+                    statusHTML = `<div class="status-info">Full Time</div>`;
+                    break;
+                case 'not_started':
+                    const localTime = formatGreekTime(match.date, match.kick_off_time_utc);
+                    statusHTML = `<div class="status-info">${match.date}</div><div class="status-info">${localTime}</div>`;
+                    break;
+                default:
+                    statusHTML = `<div class="status-info">${match.status || 'Scheduled'}</div>`;
+            }
+
+            tableHTML += `
+                <tr>
+                    <td class="team-home">${homeTeamName}</td>
+                    <td class="score">${score}</td>
+                    <td class="team-away">${awayTeamName}</td>
+                    <td class="status">${statusHTML}</td>
+                </tr>
+            `;
+        });
+        tableHTML += '</table></div>';
+        matchesContainer.innerHTML = tableHTML;
+    }
+
     async function fetchData() {
         try {
-            const response = await fetch('/api/get_current_round');
+            const response = await fetch(API_ENDPOINT);
             if (!response.ok) {
-                throw new Error(`Server responded with status ${response.status}`);
+                throw new Error(`API responded with status: ${response.status}`);
             }
             const data = await response.json();
-            hideLoading();
-            renderMatches(data);
-            const now = new Date();
-            lastUpdatedElement.textContent = `Last Updated: ${now.toLocaleTimeString()}`;
+            
+            errorMessage.classList.add('hidden');
+            loadingSpinner.classList.add('hidden');
+            
+            renderTable(data);
+
         } catch (error) {
-            console.error('Failed to fetch match data:', error);
-            hideLoading();
-            showError(error.message);
+            console.error('Failed to fetch or render data:', error);
+            loadingSpinner.classList.add('hidden');
+            errorMessage.textContent = 'Could not load current match data. Please try again later.';
+            errorMessage.classList.remove('hidden');
+            matchesContainer.innerHTML = '';
         }
     }
 
-    showLoading();
     fetchData();
-    setInterval(fetchData, REFRESH_INTERVAL_SECONDS * 1000);
+    setInterval(fetchData, REFRESH_INTERVAL_MS);
 });
