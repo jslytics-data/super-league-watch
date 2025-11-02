@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const REFRESH_INTERVAL_MS = 30000;
 
     const mainTitle = document.getElementById('main-title');
+    const roundInfo = document.getElementById('round-info');
     const lastUpdated = document.getElementById('last-updated');
     const matchesContainer = document.getElementById('matches-container');
     const loadingSpinner = document.getElementById('loading-spinner');
@@ -10,15 +11,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let grTimezone;
     try {
-        grTimezone = new Intl.DateTimeFormat().resolvedOptions().timeZone.includes("Europe") 
-            ? 'Europe/Athens' 
-            : undefined;
+        grTimezone = 'Europe/Athens';
+        new Intl.DateTimeFormat('en-US', { timeZone: grTimezone }).format();
     } catch (e) {
-        console.warn("Could not determine local timezone accurately.");
+        console.warn("Could not resolve Europe/Athens timezone, falling back to local.");
+        grTimezone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     }
     
     function formatGreekTime(dateStr, timeStr) {
-        if (!grTimezone) return timeStr;
         if (!dateStr || !timeStr) return '';
         if (timeStr.length <= 2) timeStr += ':00';
         
@@ -32,32 +32,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderTable(data) {
-        const competitionName = data.competition_name || 'Super League';
-        const roundId = data.round_id || 'N/A';
-        mainTitle.textContent = `${competitionName} - Round ${roundId}`;
+        mainTitle.textContent = data.competition_name || 'Super League';
+        roundInfo.textContent = `Αγωνιστική ${data.round_id || 'N/A'}`;
 
-        let lastUpdatedText = 'Last Updated: Just now';
         if (data.last_updated_utc) {
             const updatedDate = new Date(data.last_updated_utc);
             const options = {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: grTimezone
             };
-            if (grTimezone) {
-                options.timeZone = grTimezone;
-            }
-            lastUpdatedText = `Last Updated: ${updatedDate.toLocaleTimeString('en-GB', options)}`;
+            lastUpdated.textContent = `Last Updated: ${updatedDate.toLocaleTimeString('en-GB', options)} (GR)`;
         }
-        lastUpdated.textContent = lastUpdatedText;
         
         if (!data.matches || data.matches.length === 0) {
             matchesContainer.innerHTML = '<p>No match data available for this round.</p>';
             return;
         }
 
-        let tableHTML = '<div class="table-container"><table class="match-table">';
+        let tableHTML = '<div class="table-container"><table class="match-table"><tbody>';
         data.matches.forEach(match => {
             const homeTeamName = match.home_team_greek || match.home_team || 'N/A';
             const awayTeamName = match.away_team_greek || match.away_team || 'N/A';
@@ -66,17 +57,17 @@ document.addEventListener('DOMContentLoaded', function() {
             let statusHTML;
             switch(match.status) {
                 case 'in_play':
-                    statusHTML = `<div class="live-indicator">LIVE</div><div class="status-info">${match.live_minute}'</div>`;
+                    statusHTML = `<span class="status in-play">Live <span class="live-minute">${match.live_minute}'</span></span>`;
                     break;
                 case 'completed':
-                    statusHTML = `<div class="status-info">Full Time</div>`;
+                    statusHTML = `<span class="status completed">Full Time</span>`;
                     break;
                 case 'not_started':
                     const localTime = formatGreekTime(match.date, match.kick_off_time_utc);
-                    statusHTML = `<div class="status-info">${match.date}</div><div class="status-info">${localTime}</div>`;
+                    statusHTML = `<span class="status not-started">${localTime}</span>`;
                     break;
                 default:
-                    statusHTML = `<div class="status-info">${match.status || 'Scheduled'}</div>`;
+                    statusHTML = `<span class="status">${match.status || 'Scheduled'}</span>`;
             }
 
             tableHTML += `
@@ -84,11 +75,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td class="team-home">${homeTeamName}</td>
                     <td class="score">${score}</td>
                     <td class="team-away">${awayTeamName}</td>
-                    <td class="status">${statusHTML}</td>
+                    <td class="status-cell">${statusHTML}</td>
                 </tr>
             `;
         });
-        tableHTML += '</table></div>';
+        tableHTML += '</tbody></table></div>';
         matchesContainer.innerHTML = tableHTML;
     }
 
