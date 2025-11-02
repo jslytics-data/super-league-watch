@@ -70,17 +70,26 @@ def run_orchestration_logic():
         return False # Halt
 
     # --- Reddit Logic Decision Tree ---
-    if not reddit_post_id and round_state == "not_started":
-        if next_run_timestamp_iso:
-            first_kickoff = datetime.fromisoformat(next_run_timestamp_iso)
-            time_until_kickoff = first_kickoff - datetime.now(timezone.utc)
-            if time_until_kickoff <= timedelta(hours=HOURS_BEFORE_KICKOFF_TO_POST):
-                logger.info("First match is soon. Creating initial Reddit post.")
-                new_post_id = distribute_to_reddit.create_or_get_post(new_round_data)
-                if new_post_id:
-                    if not manage_firestore_state.update_pointer_with_reddit_details(post_id=new_post_id):
-                        return False # Halt
-                    reddit_post_id = new_post_id
+    post_creation_states = ["not_started", "in_play", "partially_completed"]
+    if not reddit_post_id and round_state in post_creation_states:
+        
+        should_create = False
+        if round_state == "not_started":
+            if next_run_timestamp_iso:
+                first_kickoff = datetime.fromisoformat(next_run_timestamp_iso)
+                if first_kickoff - datetime.now(timezone.utc) <= timedelta(hours=HOURS_BEFORE_KICKOFF_TO_POST):
+                    logger.info("First match is soon. Time to create Reddit post.")
+                    should_create = True
+        else: # If in_play or partially_completed and no post exists, create it immediately.
+            logger.info(f"Round is active ('{round_state}') but no post exists. Creating one now.")
+            should_create = True
+
+        if should_create:
+            new_post_id = distribute_to_reddit.create_or_get_post(new_round_data)
+            if new_post_id:
+                if not manage_firestore_state.update_pointer_with_reddit_details(post_id=new_post_id):
+                    return False # Halt
+                reddit_post_id = new_post_id
     
     elif reddit_post_id and round_state == "in_play":
         logger.info("Round is in play. Updating Reddit post with live scores.")
