@@ -59,6 +59,10 @@ footer {
     border-collapse: collapse;
 }
 
+.match-table thead {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
 .match-table th, .match-table td {
     padding: 15px;
     text-align: left;
@@ -80,6 +84,7 @@ footer {
 .score { text-align: center; font-weight: bold; font-size: 1.2em; }
 .team-away { text-align: left; font-weight: 500; }
 .status-cell { text-align: center; }
+.th-center { text-align: center; }
 
 .status {
     padding: 5px 15px;
@@ -89,6 +94,12 @@ footer {
     display: inline-block;
     min-width: 110px;
     text-align: center;
+}
+
+.status-time {
+    font-size: 0.9em;
+    color: #4a5568;
+    font-weight: 500;
 }
 
 .status.completed { background-color: #c6f6d5; color: #22543d; }

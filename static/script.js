@@ -23,17 +23,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (timeStr.length <= 2) timeStr += ':00';
         
         const utcDateTime = new Date(`${dateStr}T${timeStr}:00Z`);
-        return new Intl.DateTimeFormat('en-GB', {
-            hour: '2-digit',
-            minute: '2-digit',
-            timeZone: grTimezone,
-            hour12: false
-        }).format(utcDateTime);
+        const dateOptions = { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: grTimezone };
+        const timeOptions = { hour: '2-digit', minute: '2-digit', timeZone: grTimezone, hour12: false };
+        
+        const formattedDate = new Intl.DateTimeFormat('en-CA', dateOptions).format(utcDateTime);
+        const formattedTime = new Intl.DateTimeFormat('en-GB', timeOptions).format(utcDateTime);
+        
+        return { date: formattedDate, time: formattedTime };
     }
 
     function renderTable(data) {
-        mainTitle.textContent = data.competition_name || 'Super League';
-        roundInfo.textContent = `Αγωνιστική ${data.round_id || 'N/A'}`;
+        mainTitle.textContent = 'Super League Watch';
+        roundInfo.textContent = `${data.competition_name || 'Super League'} - Αγωνιστική ${data.round_id || 'N/A'}`;
 
         if (data.last_updated_utc) {
             const updatedDate = new Date(data.last_updated_utc);
@@ -48,7 +49,18 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        let tableHTML = '<div class="table-container"><table class="match-table"><tbody>';
+        let tableHeader = `
+            <thead>
+                <tr>
+                    <th class="team-home">Home</th>
+                    <th class="th-center">Score</th>
+                    <th class="team-away">Away</th>
+                    <th class="th-center">Status</th>
+                </tr>
+            </thead>
+        `;
+
+        let tableBody = '<tbody>';
         data.matches.forEach(match => {
             const homeTeamName = match.home_team_greek || match.home_team || 'N/A';
             const awayTeamName = match.away_team_greek || match.away_team || 'N/A';
@@ -63,14 +75,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusHTML = `<span class="status completed">Full Time</span>`;
                     break;
                 case 'not_started':
-                    const localTime = formatGreekTime(match.date, match.kick_off_time_utc);
-                    statusHTML = `<span class="status not-started">${localTime}</span>`;
+                    const kickoff = formatGreekTime(match.date, match.kick_off_time_utc);
+                    statusHTML = `<div class="status-time">${kickoff.date}</div><div class="status-time">${kickoff.time}</div>`;
                     break;
                 default:
                     statusHTML = `<span class="status">${match.status || 'Scheduled'}</span>`;
             }
 
-            tableHTML += `
+            tableBody += `
                 <tr>
                     <td class="team-home">${homeTeamName}</td>
                     <td class="score">${score}</td>
@@ -79,8 +91,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>
             `;
         });
-        tableHTML += '</tbody></table></div>';
-        matchesContainer.innerHTML = tableHTML;
+        tableBody += '</tbody>';
+
+        matchesContainer.innerHTML = `<div class="table-container"><table class="match-table">${tableHeader}${tableBody}</table></div>`;
     }
 
     async function fetchData() {
