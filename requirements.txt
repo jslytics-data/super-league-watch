@@ -6,3 +6,5 @@ google-cloud-tasks
 requests
 gunicorn
 pytz
+beautifulsoup4
+lxml

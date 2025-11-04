@@ -4,6 +4,12 @@ pip install -r requirements.txt
 python -m src.api_providers.live_score_api.fetch_live_scores
 python -m src.api_providers.live_score_api.fetch_fixtures
 python -m src.api_providers.live_score_api.fetch_results
+python -m src.api_providers.slg_gr.fetch_schedule
+python -m src.api_providers.slg_gr.scrape_game_details
+
+python -m src.api_providers.api_football_api.fetch_fixtures
+
+
 python -m src.discover_current_round_id
 python -m src.fetch_and_consolidate_round_data
 python -m src.analyse_round_state

@@ -1,38 +1,13 @@
 import os
 import logging
-import requests
 import json
 from datetime import datetime, timezone
 
+from .api_providers.api_football_api.discover_current_round import discover_current_round_from_api
+from .api_providers.api_football_api.fetch_fixtures import fetch_fixtures_from_api
 from .team_mappings import MAPPINGS
 
 logger = logging.getLogger(__name__)
-
-BASE_URL = "https://v3.football.api-sports.io"
-API_HOST = "v3.football.api-sports.io"
-SEASON = 2025 # Represents the 2024-2025 season
-
-def _api_request(endpoint, params):
-    api_key = os.environ.get("API_FOOTBALL_API_KEY")
-    if not api_key:
-        logger.error("API_FOOTBALL_API_KEY not found in environment.")
-        return None
-
-    headers = {"x-rapidapi-key": api_key, "x-rapidapi-host": API_HOST}
-    url = f"{BASE_URL}/{endpoint}"
-    
-    logger.info(f"Requesting from API Football endpoint: {endpoint} with params: {params}")
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=20)
-        response.raise_for_status()
-        response_data = response.json()
-        if response_data.get("errors"):
-            logger.error(f"API returned errors: {response_data['errors']}")
-            return None
-        return response_data.get("response", [])
-    except requests.exceptions.RequestException as e:
-        logger.error(f"HTTP request to API Football failed: {e}")
-        return None
 
 def _transform_fixture_data(fixture_obj):
     fixture = fixture_obj.get("fixture", {})
@@ -49,12 +24,16 @@ def _transform_fixture_data(fixture_obj):
     elif status_short in {"FT", "AET", "PEN"}:
         clean_status = "completed"
 
-    dt_object = datetime.fromisoformat(fixture.get("date"))
+    dt_object = datetime.fromisoformat(fixture.get("date")).astimezone(timezone.utc)
     date_str = dt_object.strftime("%Y-%m-%d")
     time_str = dt_object.strftime("%H:%M")
 
     home_team_name = teams.get("home", {}).get("name", "N/A")
     away_team_name = teams.get("away", {}).get("name", "N/A")
+
+    score_str = ""
+    if goals.get('home') is not None and goals.get('away') is not None:
+        score_str = f"{goals['home']} - {goals['away']}"
 
     return {
         "fixture_id": fixture.get("id"),
@@ -67,25 +46,28 @@ def _transform_fixture_data(fixture_obj):
         "home_team_subreddit": MAPPINGS["team_to_subreddit"].get(home_team_name),
         "away_team_subreddit": MAPPINGS["team_to_subreddit"].get(away_team_name),
         "status": clean_status,
-        "score": f"{goals.get('home', '')} - {goals.get('away', '')}" if goals.get('home') is not None else "",
+        "score": score_str,
         "live_minute": fixture.get("status", {}).get("elapsed"),
         "competition_name": league.get("name", "Super League")
     }
 
-def fetch_and_consolidate_round_data(competition_id, round_id):
-    logger.info(f"Consolidating data for league {competition_id}, round '{round_id}'.")
+def prepare_current_round_state(league_id, season):
+    logger.info(f"Preparing current round state for league {league_id}, season {season}.")
 
-    params = {
-        "league": competition_id,
-        "season": SEASON,
-        "round": round_id,
-        "timezone": "UTC"
-    }
-    
-    fixtures = _api_request("fixtures", params)
+    current_round = discover_current_round_from_api(league=league_id, season=season)
+    if not current_round:
+        logger.error("Could not discover current round. Halting state preparation.")
+        return None
+
+    fixtures = fetch_fixtures_from_api(
+        league=league_id,
+        season=season,
+        round=current_round,
+        timezone="UTC"
+    )
     
     if fixtures is None:
-        logger.error("API fetch failed. Cannot consolidate round data.")
+        logger.error("API fetch for fixtures failed. Halting state preparation.")
         return None
 
     clean_matches = [_transform_fixture_data(f) for f in fixtures]
@@ -94,48 +76,46 @@ def fetch_and_consolidate_round_data(competition_id, round_id):
     competition_name = clean_matches[0].get('competition_name') if clean_matches else 'Super League'
 
     final_data_structure = {
-        "round_id": round_id,
+        "round_id": current_round,
         "competition_name": competition_name,
         "matches": clean_matches,
         "last_updated_utc": datetime.now(timezone.utc).isoformat()
     }
     
-    logger.info(f"Successfully consolidated data for {len(clean_matches)} matches in round '{round_id}'.")
+    logger.info(f"Successfully prepared state for {len(clean_matches)} matches in round '{current_round}'.")
     return final_data_structure
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
-    from .discover_current_round_id import discover_current_round_id
     load_dotenv()
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    LEAGUE_ID_TO_TEST = 197
-    
-    logger.info("CLI Test: Discovering current round...")
-    current_round = discover_current_round_id()
-    
-    if not current_round:
-        logger.error("Could not discover current round. Halting test.")
+    LEAGUE_ID_TO_TEST = os.getenv("API_FOOTBALL_LEAGUE_ID")
+    SEASON_TO_TEST = os.getenv("API_FOOTBALL_SEASON")
+
+    if not LEAGUE_ID_TO_TEST or not SEASON_TO_TEST:
+        logger.critical("API_FOOTBALL_LEAGUE_ID and/or API_FOOTBALL_SEASON not set in .env file. Aborting test.")
     else:
-        logger.info(f"Discovered round: '{current_round}'. Now fetching and consolidating data.")
-        consolidated_data = fetch_and_consolidate_round_data(
-            competition_id=LEAGUE_ID_TO_TEST,
-            round_id=current_round
+        logger.info("CLI Test: Preparing current round state...")
+        prepared_data = prepare_current_round_state(
+            league_id=LEAGUE_ID_TO_TEST,
+            season=SEASON_TO_TEST
         )
         
-        if consolidated_data:
+        if prepared_data:
             output_dir = "exports"
             os.makedirs(output_dir, exist_ok=True)
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            current_round = prepared_data.get("round_id", "unknown_round")
             safe_round = "".join(c for c in current_round if c.isalnum())
-            filename = f"{output_dir}/consolidated_round_{safe_round}_{timestamp}.json"
+            filename = f"{output_dir}/prepared_round_state_{safe_round}_{timestamp}.json"
             
             try:
                 with open(filename, 'w', encoding='utf-8') as f:
-                    json.dump(consolidated_data, f, indent=4, ensure_ascii=False)
-                logger.info(f"Successfully saved consolidated data to {filename}")
+                    json.dump(prepared_data, f, indent=4, ensure_ascii=False)
+                logger.info(f"Successfully saved prepared state data to {filename}")
             except IOError as e:
                 logger.error(f"Failed to write to file {filename}: {e}")
         else:
-            logger.error(f"Failed to fetch and consolidate data for round '{current_round}'.")
+            logger.error("Failed to prepare current round state.")

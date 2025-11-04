@@ -1,25 +1,25 @@
 MAPPINGS = {
   "team_to_greek": {
     "Panathinaikos": "ΠΑΝΑΘΗΝΑΪΚΟΣ",
-    "Volos Nps": "ΒΟΛΟΣ ΝΠΣ",
+    "Volos NFC": "ΒΟΛΟΣ ΝΠΣ",
     "Kifisia": "ΚΗΦΙΣΙΑ",
     "Atromitos": "ΑΤΡΟΜΗΤΟΣ ΑΘ.",
-    "Aris Thessaloniki FC": "ΑΡΗΣ",
-    "Olympiacos": "ΟΛΥΜΠΙΑΚΟΣ",
+    "Aris Thessalonikis": "ΑΡΗΣ",
+    "Olympiakos Piraeus": "ΟΛΥΜΠΙΑΚΟΣ",
     "Levadiakos": "ΛΕΒΑΔΕΙΑΚΟΣ",
-    "AE Larissa": "Α.Ε.Λ.",
-    "PAOK Thessaloniki FC": "Π.Α.Ο.Κ.",
-    "Panserraikos FC": "ΠΑΝΣΕΡΡΑΪΚΟΣ",
+    "Larisa": "Α.Ε.Λ.",
+    "PAOK": "Π.Α.Ο.Κ.",
+    "Panserraikos": "ΠΑΝΣΕΡΡΑΪΚΟΣ",
     "Panetolikos": "ΠΑΝΑΙΤΩΛΙΚΟΣ",
-    "AEK Athens": "Α.Ε.Κ.",
-    "OFI Crete": "Ο.Φ.Η.",
+    "AEK Athens FC": "Α.Ε.Κ.",
+    "OFI": "Ο.Φ.Η.",
     "Asteras Tripolis": "ASTERAS AKTOR"
   },
   "team_to_subreddit": {
-    "AEK Athens": "https://www.reddit.com/r/AEKAthensFC/",
+    "AEK Athens FC": "https://www.reddit.com/r/AEKAthensFC/",
     "Panathinaikos": "https://www.reddit.com/r/Panathinaikos/",
-    "Olympiacos": "https://www.reddit.com/r/OlympiakosFC/",
-    "PAOK Thessaloniki FC": "https://www.reddit.com/r/PAOK/",
-    "Aris Thessaloniki FC": "https://www.reddit.com/r/ARIS/"
+    "Olympiakos Piraeus": "https://www.reddit.com/r/OlympiakosFC/",
+    "PAOK": "https://www.reddit.com/r/PAOK/",
+    "Aris Thessalonikis": "https://www.reddit.com/r/ARIS/"
   }
 }

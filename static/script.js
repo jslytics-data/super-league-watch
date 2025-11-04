@@ -33,8 +33,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderTable(data) {
-        mainTitle.textContent = 'Super League Watch';
-        roundInfo.textContent = `${data.competition_name || 'Super League'} - Αγωνιστική ${data.round_id || 'N/A'}`;
+        const competitionName = data.competition_name || 'League';
+        const roundId = data.round_id || 'Current Round';
+
+        document.title = `${competitionName} Watch - ${roundId}`;
+        mainTitle.textContent = `${competitionName} Watch`;
+        roundInfo.textContent = roundId;
 
         if (data.last_updated_utc) {
             const updatedDate = new Date(data.last_updated_utc);

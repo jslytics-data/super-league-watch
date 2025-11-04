@@ -7,8 +7,6 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://v3.football.api-sports.io"
 API_HOST = "v3.football.api-sports.io"
-LEAGUE_ID = 197  # Super League Greece
-SEASON = 2025    # Represents the 2024-2025 season
 
 def _api_request(endpoint, params):
     api_key = os.environ.get("API_FOOTBALL_API_KEY")
@@ -16,25 +14,41 @@ def _api_request(endpoint, params):
         logger.error("API_FOOTBALL_API_KEY not found in environment.")
         return None
 
-    headers = {"x-rapidapi-key": api_key, "x-rapidapi-host": API_HOST}
-    url = f"{BASE_URL}/{endpoint}"
+    headers = {
+        "x-rapidapi-key": api_key,
+        "x-rapidapi-host": API_HOST
+    }
     
+    url = f"{BASE_URL}/{endpoint}"
     logger.info(f"Requesting from API Football endpoint: {endpoint} with params: {params}")
+
     try:
         response = requests.get(url, headers=headers, params=params, timeout=20)
         response.raise_for_status()
         response_data = response.json()
+
         if response_data.get("errors"):
             logger.error(f"API returned errors: {response_data['errors']}")
             return None
-        return response_data.get("response", [])
+        
+        if "response" not in response_data:
+            logger.error("API response is missing the 'response' key.")
+            return None
+        
+        response_items = response_data["response"]
+        logger.info(f"Successfully received {len(response_items)} items from the API.")
+        return response_items
+
     except requests.exceptions.RequestException as e:
         logger.error(f"HTTP request to API Football failed: {e}")
         return None
+    except json.JSONDecodeError:
+        logger.error("Failed to decode JSON from API Football response.")
+        return None
 
-def discover_current_round_id():
-    logger.info(f"Discovering current round for league {LEAGUE_ID}, season {SEASON}.")
-    params = {"league": LEAGUE_ID, "season": SEASON, "current": "true"}
+def discover_current_round_from_api(league, season):
+    logger.info(f"Discovering current round for league {league}, season {season}.")
+    params = {"league": league, "season": season, "current": "true"}
     
     rounds = _api_request("fixtures/rounds", params)
 
@@ -50,10 +64,19 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    LEAGUE_ID_TO_TEST = os.getenv("API_FOOTBALL_LEAGUE_ID")
+    SEASON_TO_TEST = os.getenv("API_FOOTBALL_SEASON")
 
-    round_id = discover_current_round_id()
-
-    if round_id:
-        print(f"\nCLI Test Success: Discovered current round -> {round_id}\n")
+    if not LEAGUE_ID_TO_TEST or not SEASON_TO_TEST:
+        logger.critical("API_FOOTBALL_LEAGUE_ID and/or API_FOOTBALL_SEASON not set in .env file. Aborting test.")
     else:
-        print("\nCLI Test Info: Could not discover a current round.\n")
+        round_name = discover_current_round_from_api(
+            league=LEAGUE_ID_TO_TEST,
+            season=SEASON_TO_TEST
+        )
+
+        if round_name:
+            print(f"\nCLI Test Success: Discovered current round -> {round_name}\n")
+        else:
+            print("\nCLI Test Info: Could not discover a current round.\n")
