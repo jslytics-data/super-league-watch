@@ -24,7 +24,6 @@ def run_orchestration_logic():
 
     pointer_data = manage_firestore_state.get_current_round_pointer()
     
-    # Discovery logic is now implicitly handled by prepare_current_round_state
     new_round_data = prepare_current_round_state.prepare_current_round_state(
         league_id=LEAGUE_ID,
         season=SEASON
@@ -38,14 +37,12 @@ def run_orchestration_logic():
 
     current_round_id = new_round_data.get("round_id")
     
-    # Construct a dynamic path for Firestore
     round_doc_path = f"leagues/{LEAGUE_ID}/seasons/{SEASON}/rounds/{current_round_id}"
 
-    # If the round has changed, reset the pointer
     if not pointer_data or pointer_data.get("round_id") != current_round_id:
         logger.info(f"New round detected ({current_round_id}). Resetting pointer.")
         if not manage_firestore_state.set_current_round_pointer(round_doc_path, current_round_id):
-            return False # Halt
+            return False
         pointer_data = manage_firestore_state.get_current_round_pointer()
 
     reddit_post_id = pointer_data.get("reddit_post_id")
@@ -55,27 +52,30 @@ def run_orchestration_logic():
 
     analysis = analyze_round_state.analyze_round_state(new_round_data)
     if not analysis:
-        return False # Halt
+        return False
         
     round_state = analysis.get("round_state")
     next_run_timestamp_iso = analysis.get("next_run_timestamp")
 
     if not manage_firestore_state.set_round_data(round_doc_path, new_round_data):
-        return False # Halt
+        return False
 
-    # --- Reddit Logic Decision Tree ---
+    # --- Reddit Logic Decision Tree (Corrected) ---
     post_creation_states = ["not_started", "in_play", "partially_completed"]
     if not reddit_post_id and round_state in post_creation_states:
+        
         should_create = False
         if round_state == "not_started":
             if next_run_timestamp_iso:
                 first_kickoff = datetime.fromisoformat(next_run_timestamp_iso)
                 if first_kickoff - datetime.now(timezone.utc) <= timedelta(hours=HOURS_BEFORE_KICKOFF_TO_POST):
+                    logger.info("First match is soon. Time to create Reddit post.")
                     should_create = True
-        else:
+        else: # If in_play or partially_completed and no post exists, create it immediately.
+            logger.info(f"Round is active ('{round_state}') but no post exists. Creating one now.")
             should_create = True
+
         if should_create:
-            logger.info(f"Conditions met to create Reddit post for round '{current_round_id}'.")
             new_post_id = distribute_to_reddit.create_or_get_post(new_round_data)
             if new_post_id:
                 if not manage_firestore_state.update_pointer_with_reddit_details(post_id=new_post_id):
@@ -83,9 +83,11 @@ def run_orchestration_logic():
                 reddit_post_id = new_post_id
     
     elif reddit_post_id and round_state == "in_play":
+        logger.info("Round is in play. Updating Reddit post with live scores.")
         distribute_to_reddit.update_post(reddit_post_id, new_round_data)
 
     elif reddit_post_id and round_state == "completed" and not reddit_post_finalized:
+        logger.info("Round is complete. Performing final update on Reddit post.")
         distribute_to_reddit.update_post(reddit_post_id, new_round_data)
         if not manage_firestore_state.update_pointer_with_reddit_details(is_finalized=True):
             return False
