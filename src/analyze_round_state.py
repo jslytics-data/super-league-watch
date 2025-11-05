@@ -26,9 +26,9 @@ def analyze_round_state(round_data):
         round_state = "not_started"
     elif "completed" in statuses and "not_started" in statuses:
         round_state = "partially_completed"
-    else:
-        if "not_started" in statuses:
-             round_state = "partially_completed"
+    else: # Catches other combinations, like in_play and not_started
+        if "not_started" in statuses or "in_play" in statuses:
+             round_state = "partially_completed" # Treat as active
         else:
             logger.warning(f"Could not determine a clear round state from statuses: {statuses}")
             next_run_timestamp = datetime.now(timezone.utc) + timedelta(minutes=5)
@@ -46,9 +46,6 @@ def analyze_round_state(round_data):
             if match.get("status") == "not_started":
                 try:
                     kick_off_time = match.get('kick_off_time_utc', '')
-                    if len(kick_off_time) == 2: # Handles "16" vs "17:30"
-                        kick_off_time += ":00"
-                    
                     match_dt_str = f"{match.get('date')}T{kick_off_time}"
                     match_dt = datetime.fromisoformat(match_dt_str).replace(tzinfo=timezone.utc)
                     
@@ -59,11 +56,18 @@ def analyze_round_state(round_data):
                     continue
         
         if next_match_timestamp:
-            next_run_timestamp = next_match_timestamp
-        else:
-            logger.warning("Could not determine next match time. Scheduling a check in 5 minutes.")
-            next_run_timestamp = datetime.now(timezone.utc) + timedelta(minutes=5)
-    
+            # --- THIS IS THE NEW SANITY CHECK ---
+            now = datetime.now(timezone.utc)
+            if next_match_timestamp < now:
+                logger.warning(f"Next match kickoff ({next_match_timestamp}) is in the past. API data may be lagging. Scheduling a check in 60 seconds.")
+                next_run_timestamp = now + timedelta(seconds=60)
+            else:
+                next_run_timestamp = next_match_timestamp
+            # --- END OF NEW LOGIC ---
+        else: # No 'not_started' matches left, but not 'completed' yet.
+            logger.info("No more upcoming matches in this round, but not all are completed. Checking again in 60s.")
+            next_run_timestamp = datetime.now(timezone.utc) + timedelta(seconds=60)
+            
     elif round_state == "completed":
         next_run_timestamp = None
         
@@ -80,11 +84,14 @@ if __name__ == "__main__":
 
     EXPORT_DIR = "exports"
     try:
-        files = [f for f in os.listdir(EXPORT_DIR) if f.startswith("consolidated_round_") and f.endswith(".json")]
-        files.sort(key=lambda f: os.path.getmtime(os.path.join(EXPORT_DIR, f)), reverse=True)
+        files = sorted(
+            [f for f in os.listdir(EXPORT_DIR) if f.startswith("prepared_round_state_") and f.endswith(".json")],
+            key=lambda f: os.path.getmtime(os.path.join(EXPORT_DIR, f)),
+            reverse=True
+        )
         
         if not files:
-            logger.error(f"No 'consolidated_round_*.json' files found in '{EXPORT_DIR}' for CLI test.")
+            logger.error(f"No 'prepared_round_state_*.json' files found in '{EXPORT_DIR}' for CLI test.")
         else:
             latest_file = os.path.join(EXPORT_DIR, files[0])
             logger.info(f"Running CLI test on latest consolidated file: {latest_file}")
