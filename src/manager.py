@@ -32,7 +32,7 @@ def run_orchestration_logic():
         logger.warning("Failed to prepare new round state. Possibly end of season. Scheduling check for tomorrow.")
         next_run = datetime.now(timezone.utc) + timedelta(days=1)
         target_url = os.getenv("CLOUD_RUN_SERVICE_URL")
-        schedule_next_run.schedule_next_run(next_run, target_url)
+        schedule_next_run.schedule_next_run(next_run, target_url) # No round_id needed for daily check
         return True
 
     current_round_id = new_round_data.get("round_id")
@@ -57,7 +57,6 @@ def run_orchestration_logic():
 
     if not manage_firestore_state.set_round_data(round_doc_path, new_round_data): return False
 
-    # --- Reddit Logic Decision Tree (With Stricter Error Handling) ---
     post_creation_states = ["not_started", "in_play", "partially_completed"]
     if not reddit_post_id and round_state in post_creation_states:
         should_create = False
@@ -70,18 +69,18 @@ def run_orchestration_logic():
         if should_create:
             logger.info(f"Conditions met to create Reddit post for round '{current_round_id}'.")
             new_post_id = distribute_to_reddit.create_or_get_post(new_round_data)
-            if not new_post_id: return False # HALT if creation fails
-            if not manage_firestore_state.update_pointer_with_reddit_details(post_id=new_post_id): return False # HALT if save fails
+            if not new_post_id: return False
+            if not manage_firestore_state.update_pointer_with_reddit_details(post_id=new_post_id): return False
             reddit_post_id = new_post_id
     
     elif reddit_post_id and round_state == "in_play":
         logger.info("Round is in play. Updating Reddit post with live scores.")
-        if not distribute_to_reddit.update_post(reddit_post_id, new_round_data): return False # HALT if update fails
+        if not distribute_to_reddit.update_post(reddit_post_id, new_round_data): return False
 
     elif reddit_post_id and round_state == "completed" and not reddit_post_finalized:
         logger.info("Round is complete. Performing final update on Reddit post.")
-        if not distribute_to_reddit.update_post(reddit_post_id, new_round_data): return False # HALT if update fails
-        if not manage_firestore_state.update_pointer_with_reddit_details(is_finalized=True): return False # HALT if save fails
+        if not distribute_to_reddit.update_post(reddit_post_id, new_round_data): return False
+        if not manage_firestore_state.update_pointer_with_reddit_details(is_finalized=True): return False
 
     if round_state == "completed":
         logger.info(f"Round {current_round_id} is complete. Marking pointer to trigger discovery on next run.")
@@ -94,7 +93,8 @@ def run_orchestration_logic():
 
     next_run_dt = datetime.fromisoformat(next_run_timestamp_iso) if next_run_timestamp_iso else None
     
-    if not schedule_next_run.schedule_next_run(next_run_dt, target_url): return False
+    if not schedule_next_run.schedule_next_run(next_run_dt, target_url, round_id=current_round_id): 
+        return False
 
     logger.info("--- Orchestration Logic Completed Successfully ---")
     return True
