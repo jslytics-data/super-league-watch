@@ -23,11 +23,10 @@ def schedule_next_run(execution_timestamp, target_url, round_id=None):
     task_name = None
     full_task_name = None
     if round_id:
-        safe_round_id = "".join(c for c in round_id if c.isalnum())
+        safe_round_id = "".join(c for c in str(round_id) if c.isalnum())
         task_name = f"round-{safe_round_id}"
         full_task_name = client.task_path(project_id, location, queue_id, task_name)
 
-    # --- NEW: Delete existing task first to prevent race conditions ---
     if full_task_name:
         try:
             client.delete_task(name=full_task_name)
@@ -36,8 +35,7 @@ def schedule_next_run(execution_timestamp, target_url, round_id=None):
             logger.info(f"No existing task named '{task_name}' to delete. Proceeding to create.")
         except Exception as e:
             logger.error(f"Error deleting task '{task_name}': {e}")
-            return False # Halt on unexpected deletion errors
-    # --- END NEW LOGIC ---
+            return False
 
     if not execution_timestamp:
         logger.info("No execution timestamp provided. No new task will be scheduled.")
@@ -63,12 +61,8 @@ def schedule_next_run(execution_timestamp, target_url, round_id=None):
         response = client.create_task(parent=queue_path, task=task)
         logger.info(f"Successfully created task: {response.name}")
         return True
-    except google_exceptions.AlreadyExists:
-        # This is now a fallback, but the delete should prevent it.
-        logger.warning("Task already exists, likely due to a race condition. The previous run should handle it.")
-        return True 
     except Exception as e:
-        logger.error(f"Failed to create Cloud Task: {e}")
+        logger.error(f"A critical error occurred creating the task: {e}")
         return False
 
 if __name__ == "__main__":
