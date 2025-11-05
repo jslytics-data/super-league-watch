@@ -143,6 +143,10 @@ def _create_post(access_token, subreddit, title, markdown_body):
 
 def update_post(post_id, round_data):
     logger.info(f"Attempting to update Reddit post {post_id}")
+    if not post_id or not post_id.startswith('t3_'):
+        logger.error(f"Invalid post_id provided for update: {post_id}. It must start with 't3_'.")
+        return False
+        
     access_token = _refresh_access_token()
     if not access_token: return False
         
@@ -172,14 +176,16 @@ def create_or_get_post(round_data):
     if not subreddit:
         logger.error("TARGET_SUBREDDIT is not set in environment.")
         return None
+
     access_token = _refresh_access_token()
     if not access_token: return None
+    
     title, markdown_body = _format_post_body(round_data)
     if not title or not markdown_body: return None
     
-    # Since title is now dynamic with competition name, we need to find the post differently
-    # For now, the idempotency is handled by the manager checking firestore.
-    # A more robust search could be implemented later if needed.
+    existing_post_id = _find_existing_post_id(access_token, subreddit, title)
+    if existing_post_id:
+        return existing_post_id
     
     return _create_post(access_token, subreddit, title, markdown_body)
 
@@ -205,13 +211,11 @@ if __name__ == "__main__":
 
         with open(latest_file_path, 'r', encoding='utf-8') as f: test_round_data = json.load(f)
         
-        # Note: This test will create a new post each time due to the dynamic title.
-        # This is acceptable for testing the formatting.
         logger.info("\n1. Testing 'create_or_get_post' with new formatting...")
         post_id = create_or_get_post(test_round_data)
 
         if post_id:
-            logger.info(f"Success. Created Post with ID: {post_id}")
+            logger.info(f"Success. Got Post ID: {post_id}")
             logger.info("\n2. Testing 'update_post' with the same data to confirm formatting...")
             update_success = update_post(post_id, test_round_data)
             if update_success:
