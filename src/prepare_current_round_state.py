@@ -19,7 +19,9 @@ def _transform_fixture_data(fixture_obj):
     clean_status = "unknown"
     if status_short in {"TBD", "NS", "PST", "CANC"}:
         clean_status = "not_started"
-    elif status_short in {"1H", "HT", "2H", "ET", "BT", "P", "LIVE"}:
+    elif status_short == "HT":
+        clean_status = "half_time"
+    elif status_short in {"1H", "2H", "ET", "BT", "P", "LIVE"}:
         clean_status = "in_play"
     elif status_short in {"FT", "AET", "PEN"}:
         clean_status = "completed"

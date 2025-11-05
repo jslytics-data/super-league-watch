@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     const API_ENDPOINT = '/api/get_current_round';
-    const REFRESH_INTERVAL_MS = 30000;
+    const REFRESH_INTERVAL_MS = 300000;
 
     const mainTitle = document.getElementById('main-title');
     const roundInfo = document.getElementById('round-info');
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.warn("Could not resolve Europe/Athens timezone, falling back to local.");
         grTimezone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     }
-    
+
     function formatGreekTime(dateStr, timeStr) {
         if (!dateStr || !timeStr) return '';
         if (timeStr.length <= 2) timeStr += ':00';
@@ -74,6 +74,9 @@ document.addEventListener('DOMContentLoaded', function() {
             switch(match.status) {
                 case 'in_play':
                     statusHTML = `<span class="status in-play">Live <span class="live-minute">${match.live_minute}'</span></span>`;
+                    break;
+                case 'half_time':
+                    statusHTML = `<span class="status half-time">Half Time</span>`;
                     break;
                 case 'completed':
                     statusHTML = `<span class="status completed">Full Time</span>`;

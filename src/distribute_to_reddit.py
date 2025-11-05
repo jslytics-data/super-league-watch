@@ -72,6 +72,8 @@ def _format_post_body(round_data):
         if status_val == "in_play":
             minute = match.get('live_minute', '')
             status_display = f"🔴 Live ({minute}')"
+        elif status_val == "half_time":
+            status_display = f"⏸️ Half Time"
         elif status_val == "completed":
             status_display = f"🏁 Full Time"
         elif status_val == "not_started":

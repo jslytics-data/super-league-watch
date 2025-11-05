@@ -104,6 +104,7 @@ footer {
 
 .status.completed { background-color: #c6f6d5; color: #22543d; }
 .status.in-play { background-color: #fed7d7; color: #742a2a; animation: pulse 1.5s infinite; }
+.status.half-time { background-color: #feebc8; color: #9c4221; }
 .status.not-started { background-color: #e2e8f0; color: #4a5568; }
 
 .live-minute {
