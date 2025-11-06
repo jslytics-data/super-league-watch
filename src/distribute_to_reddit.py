@@ -92,7 +92,14 @@ def _format_post_body(round_data):
         line = f"| **{home_greek}** | **{score}** | **{away_greek}** | {status_display} |"
         body_lines.append(line)
     
-    footer = f"\n\n---\n*Last updated: {last_updated_display}*"
+    # --- NEW THUMBNAIL LOGIC ---
+    thumbnail_url = os.getenv("REDDIT_THUMBNAIL_URL")
+    if thumbnail_url:
+        # Hide the link on the colon of "Last updated:"
+        footer = f"\n\n---\n*Last updated[**:**]({thumbnail_url}) {last_updated_display}*"
+    else:
+        footer = f"\n\n---\n*Last updated: {last_updated_display}*"
+    # --- END NEW THUMBNAIL LOGIC ---
     
     full_body = header + "\n".join(body_lines) + footer
     return title, full_body
@@ -126,12 +133,10 @@ def _create_post(access_token, subreddit, title, markdown_body):
     headers = {"Authorization": f"Bearer {access_token}", "User-Agent": user_agent}
     data = {"sr": subreddit, "title": title, "kind": "self", "text": markdown_body, "api_type": "json"}
 
-    # --- NEW LOGIC ---
     flair_id = os.getenv("SUBREDDIT_FLAIR_ID")
     if flair_id:
         data["flair_id"] = flair_id
         logger.info(f"Applying flair ID: {flair_id}")
-    # --- END NEW LOGIC ---
 
     try:
         response = requests.post("https://oauth.reddit.com/api/submit", headers=headers, data=data, timeout=30)
