@@ -126,6 +126,13 @@ def _create_post(access_token, subreddit, title, markdown_body):
     headers = {"Authorization": f"Bearer {access_token}", "User-Agent": user_agent}
     data = {"sr": subreddit, "title": title, "kind": "self", "text": markdown_body, "api_type": "json"}
 
+    # --- NEW LOGIC ---
+    flair_id = os.getenv("SUBREDDIT_FLAIR_ID")
+    if flair_id:
+        data["flair_id"] = flair_id
+        logger.info(f"Applying flair ID: {flair_id}")
+    # --- END NEW LOGIC ---
+
     try:
         response = requests.post("https://oauth.reddit.com/api/submit", headers=headers, data=data, timeout=30)
         response.raise_for_status()
