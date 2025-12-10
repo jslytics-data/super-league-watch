@@ -1,6 +1,5 @@
 import os
 import logging
-import uuid
 from datetime import datetime
 from google.cloud import tasks_v2
 from google.protobuf import timestamp_pb2
@@ -37,19 +36,21 @@ def schedule_next_run(execution_timestamp, target_url, round_id=None):
     timestamp.FromDatetime(execution_timestamp)
     task["schedule_time"] = timestamp
 
-    # --- NEW NAMING LOGIC ---
-    # The name is now always unique, preventing tombstone issues,
-    # but still contains contextual info for logging.
+    # --- UPDATED NAMING LOGIC (DETERMINISTIC) ---
+    # We remove UUID. We use the target timestamp as the unique identifier.
+    # This ensures that if the Scheduler triggers 100 times for the same
+    # upcoming match time, only the first one is accepted.
     task_name_for_logs = "unnamed"
     if round_id:
         safe_round_id = "".join(c for c in str(round_id) if c.isalnum())
-        unique_id = str(uuid.uuid4()).split('-')[0] # a short UUID
+        # Format: YYYYMMDD_HHMMSS
+        ts_signature = execution_timestamp.strftime("%Y%m%d_%H%M%S")
         
-        task_name = f"round-{safe_round_id}-{unique_id}"
+        task_name = f"round-{safe_round_id}-{ts_signature}"
         full_task_name = client.task_path(project_id, location, queue_id, task_name)
         task["name"] = full_task_name
         task_name_for_logs = task_name
-    # --- END NEW NAMING LOGIC ---
+    # --- END UPDATED LOGIC ---
 
     try:
         logger.info(f"Attempting to schedule task '{task_name_for_logs}' to run at {execution_timestamp.isoformat()}")
@@ -57,8 +58,7 @@ def schedule_next_run(execution_timestamp, target_url, round_id=None):
         logger.info(f"Successfully created task: {response.name}")
         return True
     except google_exceptions.AlreadyExists:
-        # This should now be nearly impossible to hit, but is kept as a safeguard.
-        logger.warning(f"Task '{task_name_for_logs}' with this unique ID already exists. This is unexpected.")
+        logger.info(f"Task '{task_name_for_logs}' already exists in the queue. Skipping duplicate scheduling.")
         return True
     except Exception as e:
         logger.error(f"A critical error occurred creating the task: {e}")
