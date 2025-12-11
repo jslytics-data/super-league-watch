@@ -14,6 +14,7 @@ def _transform_fixture_data(fixture_obj):
     league = fixture_obj.get("league", {})
     teams = fixture_obj.get("teams", {})
     goals = fixture_obj.get("goals", {})
+    venue = fixture.get("venue", {})
     status_short = fixture.get("status", {}).get("short")
 
     clean_status = "unknown"
@@ -41,16 +42,27 @@ def _transform_fixture_data(fixture_obj):
         "fixture_id": fixture.get("id"),
         "date": date_str,
         "kick_off_time_utc": time_str,
+        # Team Names & Mappings
         "home_team": home_team_name,
         "away_team": away_team_name,
         "home_team_greek": MAPPINGS["team_to_greek"].get(home_team_name),
         "away_team_greek": MAPPINGS["team_to_greek"].get(away_team_name),
         "home_team_subreddit": MAPPINGS["team_to_subreddit"].get(home_team_name),
         "away_team_subreddit": MAPPINGS["team_to_subreddit"].get(away_team_name),
+        # Logos
+        "home_team_logo": teams.get("home", {}).get("logo"),
+        "away_team_logo": teams.get("away", {}).get("logo"),
+        # Match Details
         "status": clean_status,
         "score": score_str,
         "live_minute": fixture.get("status", {}).get("elapsed"),
-        "competition_name": league.get("name", "Super League")
+        # Metadata
+        "referee": fixture.get("referee"),  # Can be None
+        "stadium": venue.get("name"),       # Can be None
+        "city": venue.get("city"),          # Can be None
+        # League Context (used for top-level extraction later)
+        "competition_name": league.get("name", "Super League"),
+        "league_logo": league.get("logo")
     }
 
 def prepare_current_round_state(league_id, season):
@@ -75,11 +87,18 @@ def prepare_current_round_state(league_id, season):
     clean_matches = [_transform_fixture_data(f) for f in fixtures]
     clean_matches.sort(key=lambda x: (x.get('date', ''), x.get('kick_off_time_utc', '')))
     
-    competition_name = clean_matches[0].get('competition_name') if clean_matches else 'Super League'
+    # Extract top-level metadata from the first match (safe assumption for a single round)
+    competition_name = "Super League"
+    league_logo = None
+    
+    if clean_matches:
+        competition_name = clean_matches[0].get('competition_name', competition_name)
+        league_logo = clean_matches[0].get('league_logo')
 
     final_data_structure = {
         "round_id": current_round,
         "competition_name": competition_name,
+        "league_logo": league_logo,
         "matches": clean_matches,
         "last_updated_utc": datetime.now(timezone.utc).isoformat()
     }

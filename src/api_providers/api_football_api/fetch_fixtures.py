@@ -61,7 +61,7 @@ if __name__ == "__main__":
     SEASON_TO_TEST = os.getenv("API_FOOTBALL_SEASON")
     
     # Round is a variable for the CLI test, but an open parameter in the main function.
-    ROUND_TO_TEST = "League Stage - 4" 
+    ROUND_TO_TEST = "League Stage - 5" 
     TIMEZONE_TO_TEST = "Europe/Athens"
 
     if not LEAGUE_ID_TO_TEST or not SEASON_TO_TEST:

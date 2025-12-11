@@ -92,14 +92,11 @@ def _format_post_body(round_data):
         line = f"| **{home_greek}** | **{score}** | **{away_greek}** | {status_display} |"
         body_lines.append(line)
     
-    # --- NEW THUMBNAIL LOGIC ---
     thumbnail_url = os.getenv("REDDIT_THUMBNAIL_URL")
     if thumbnail_url:
-        # Hide the link on the colon of "Last updated:"
-        footer = f"\n\n---\n*Last updated[**:**]({thumbnail_url}) {last_updated_display}*"
+        footer = f"\n\n---\n*Τελευταία Ανανέωση: [**:**]({thumbnail_url}) {last_updated_display}*"
     else:
-        footer = f"\n\n---\n*Last updated: {last_updated_display}*"
-    # --- END NEW THUMBNAIL LOGIC ---
+        footer = f"\n\n---\n*Τελευταία Ανανέωση: {last_updated_display}*"
     
     full_body = header + "\n".join(body_lines) + footer
     return title, full_body
@@ -224,6 +221,19 @@ if __name__ == "__main__":
         logger.info(f"Using latest data file: {latest_file_path}")
 
         with open(latest_file_path, 'r', encoding='utf-8') as f: test_round_data = json.load(f)
+
+        # --- NEW PREVIEW SAVER LOGIC ---
+        preview_title, preview_body = _format_post_body(test_round_data)
+        if preview_title and preview_body:
+            ts_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            preview_filename = f"{EXPORT_DIR}/reddit_preview_{ts_str}.md"
+            try:
+                with open(preview_filename, 'w', encoding='utf-8') as pf:
+                    pf.write(f"# {preview_title}\n\n{preview_body}")
+                logger.info(f"📝 Markdown preview saved to: {preview_filename}")
+            except Exception as e:
+                logger.error(f"Failed to save markdown preview: {e}")
+        # -------------------------------
         
         logger.info("\n1. Testing 'create_or_get_post' with new formatting...")
         post_id = create_or_get_post(test_round_data)
